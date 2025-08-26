@@ -657,76 +657,79 @@ return (
       <button onClick={resetarFiltros}>Resetar Filtros</button>
       {/* Novo botão: gera PDF com todos os alunos selecionados */}
       <button
-  className={styles.pdfButton}
-  onClick={async () => {
-    try {
-      // Filtra apenas alunos com ID definido
-      const alunosValidos = alunosSelecionados.filter(
-        (aluno) => aluno.id !== undefined && aluno.id !== null
-      );
-
-      // Mapeia todos os alunos válidos e pega suas notas
-      const alunosComNotas = await Promise.all(
-        alunosValidos.map(async (aluno) => {
+        className={styles.pdfButton}
+        onClick={async () => {
           try {
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/notas/${aluno.id}`);
-            const notasLinhas = response.data?.dados || [];
+            // Mapeia IDs selecionados para objetos completos de alunos
+            const alunosValidos = alunos.filter((a) => alunosSelecionados.includes(a.id));
 
-            // Transforma cada linha (com várias disciplinas) em entradas por disciplina
-            const entradasPorDisciplina = [];
-            notasLinhas.forEach((linha) => {
-              const ano = linha.ano_curso ?? linha.ano ?? aluno.ano_curso ?? "Ano não informado";
-              if (linha.matematica) entradasPorDisciplina.push({ ano, disciplina_nome: "Matemática", nota: linha.matematica, status: "" });
-              if (linha.portugues) entradasPorDisciplina.push({ ano, disciplina_nome: "Português", nota: linha.portugues, status: "" });
-              if (linha.estudos_sociais) entradasPorDisciplina.push({ ano, disciplina_nome: "Estudos Sociais", nota: linha.estudos_sociais, status: "" });
-              if (linha.ciencias) entradasPorDisciplina.push({ ano, disciplina_nome: "Ciências", nota: linha.ciencias, status: "" });
-            });
+            if (alunosValidos.length === 0) {
+              alert("Selecione ao menos um aluno.");
+              return;
+            }
 
-            // Agrupa por ano
-            const notasPorAno = entradasPorDisciplina.reduce((acc, entrada) => {
-              const ano = entrada.ano || "Sem Ano";
-              if (!acc[ano]) acc[ano] = [];
-              acc[ano].push({
-                disciplina_nome: entrada.disciplina_nome,
-                nota: entrada.nota,
-                status: entrada.status,
-              });
-              return acc;
-            }, {});
+            // Mapeia todos os alunos válidos e pega suas notas
+            const alunosComNotas = await Promise.all(
+              alunosValidos.map(async (aluno) => {
+                try {
+                  const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/notas/${aluno.id}`);
+                  const notasLinhas = response.data?.dados || [];
 
-            return {
-              aluno_nome: aluno.aluno_nome,
-              id: aluno.id,
-              notasPorAno,
-            };
+                  // Transforma cada linha (com várias disciplinas) em entradas por disciplina
+                  const entradasPorDisciplina = [];
+                  notasLinhas.forEach((linha) => {
+                    const ano = linha.ano_curso ?? linha.ano ?? aluno.ano_curso ?? "Ano não informado";
+                    if (linha.matematica) entradasPorDisciplina.push({ ano, disciplina_nome: "Matemática", nota: linha.matematica, status: "" });
+                    if (linha.portugues) entradasPorDisciplina.push({ ano, disciplina_nome: "Português", nota: linha.portugues, status: "" });
+                    if (linha.estudos_sociais) entradasPorDisciplina.push({ ano, disciplina_nome: "Estudos Sociais", nota: linha.estudos_sociais, status: "" });
+                    if (linha.ciencias) entradasPorDisciplina.push({ ano, disciplina_nome: "Ciências", nota: linha.ciencias, status: "" });
+                  });
+
+                  // Agrupa por ano
+                  const notasPorAno = entradasPorDisciplina.reduce((acc, entrada) => {
+                    const ano = entrada.ano || "Sem Ano";
+                    if (!acc[ano]) acc[ano] = [];
+                    acc[ano].push({
+                      disciplina_nome: entrada.disciplina_nome,
+                      nota: entrada.nota,
+                      status: entrada.status,
+                    });
+                    return acc;
+                  }, {});
+
+                  return {
+                    aluno_nome: aluno.aluno_nome,
+                    id: aluno.id,
+                    notasPorAno,
+                  };
+                } catch (err) {
+                  // Caso o aluno não tenha notas (404)
+                  return {
+                    aluno_nome: aluno.aluno_nome,
+                    id: aluno.id,
+                    notasPorAno: {},
+                  };
+                }
+              })
+            );
+
+            // Gera PDF apenas com notas dos alunos selecionados
+            const blob = await pdf(<BoletimSelecionadosPDF alunos={alunosComNotas} />).toBlob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `boletim_selecionados.pdf`;
+            link.click();
+            URL.revokeObjectURL(url);
+
           } catch (err) {
-            // Caso o aluno não tenha notas (404)
-            return {
-              aluno_nome: aluno.aluno_nome,
-              id: aluno.id,
-              notasPorAno: {},
-            };
+            console.error("Erro ao gerar PDF de selecionados:", err);
+            alert("Erro ao gerar PDF dos alunos selecionados. Tente novamente.");
           }
-        })
-      );
-
-      // Gera PDF apenas com notas dos alunos selecionados
-      const blob = await pdf(<BoletimSelecionadosPDF alunos={alunosComNotas} />).toBlob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `boletim_selecionados.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-
-    } catch (err) {
-      console.error("Erro ao gerar PDF de selecionados:", err);
-      alert("Erro ao gerar PDF dos alunos selecionados. Tente novamente.");
-    }
-  }}
->
-  Gerar PDF Selecionados
-</button>
+        }}
+      >
+        Gerar PDF Selecionados
+      </button>
 
 
 
